@@ -17,14 +17,6 @@
 local ffi = require 'ffi'
 ffi.cdef[[
 
-int libscrypt_scrypt(const uint8_t *, size_t, const uint8_t *, size_t, uint64_t,
-    uint32_t, uint32_t, /*@out@*/ uint8_t *, size_t);
-
-int libscrypt_mcf(uint32_t N, uint32_t r, uint32_t p, const char *salt,
-	const char *hash, char *mcf);
-
-int libscrypt_salt_gen(uint8_t *rand, size_t len);
-
 int libscrypt_hash(char *dst, const char* passphrase, uint32_t N, uint8_t r,
   uint8_t p);
 
@@ -43,16 +35,16 @@ local scrypt = ffi.load("scrypt")
 -- is in standard MCF form, and will include a 128 bit salt, N, r, and p 
 -- values, as well as the BASE64 encoded hash.
 --
--- TODO: Learn how to deal with errno in luajit-ffi, check for errors
--- 
--- Returns: 128b MCF string on success, nil on error
+-- Returns: 128b MCF string 
 -------------------------------------------------------------------------------
-local function hash(passphrase)
-  local N, r, p = 16384, 8, 16
-  local buf = ffi.new("char[?]", 128)
-  local res = scrypt.libscrypt_hash(buf, passphrase, N, r, p)
-  if res == 0 then return nil end
-  return(ffi.string(buf, 128))
+local function hash(passphrase, N, r, p)
+   local _N = N or 16384
+   local _r = r or 8
+   local _p = p or 16
+   local buf = ffi.new("char[?]", 128)
+   local res = scrypt.libscrypt_hash(buf, passphrase, _N, _r, _p)
+   assert(res ~= 0, "libscrypt_hash failure")
+   return(ffi.string(buf, 128))
 end
 
 -------------------------------------------------------------------------------
@@ -65,12 +57,12 @@ end
 -- Returns: true if the password matches, false if not, nil on error
 -------------------------------------------------------------------------------
 local function check(mcf, passphrase)
-  local cmcf = ffi.new("char[?]", #mcf)
-  ffi.copy(cmcf, mcf)
-  local res = scrypt.libscrypt_check(cmcf, passphrase)
-  if res == 0 then return false end
-  if res > 0 then return true end
-  return nil
+    local cmcf = ffi.new("char[?]", #mcf)
+    ffi.copy(cmcf, mcf)
+    local res = scrypt.libscrypt_check(cmcf, passphrase)
+    if res == 0 then return false end
+    if res > 0 then return true end
+    return nil
 end
 
 return {
